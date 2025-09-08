@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  laravel-pemdas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel-pemdas-app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./database/database.sqlite:/var/www/html/database/database.sqlite
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/var/www/html/database/database.sqlite
+    networks:
+      - laravel-pemdas-network
+
+networks:
+  laravel-pemdas-network:
+    driver: bridge
