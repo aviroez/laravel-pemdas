@@ -1,0 +1,156 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main   # deploy only when merged to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            set -e
+
+            # Define project variables
+            PROJECT_NAME="laravel-pemdas"
+            PROJECT_DIR="/var/www/$PROJECT_NAME"
+            BACKUP_DIR="/var/backups/$PROJECT_NAME"
+
+            # Create backup directory
+            mkdir -p $BACKUP_DIR
+
+            # Create project directory if it doesn't exist
+            if [ ! -d "$PROJECT_DIR" ]; then
+              mkdir -p $PROJECT_DIR
+            fi
+
+            cd $PROJECT_DIR
+
+            # Backup current database and .env if they exist
+            if [ -f "database/database.sqlite" ]; then
+              echo "Backing up database..."
+              cp database/database.sqlite $BACKUP_DIR/database_$(date +%Y%m%d_%H%M%S).sqlite
+            fi
+            
+            if [ -f ".env" ]; then
+              echo "Backing up .env file..."
+              cp .env $BACKUP_DIR/.env_$(date +%Y%m%d_%H%M%S)
+            fi
+
+            # Clone or update repository
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/aviroez/laravel-pemdas.git .
+            else
+              echo "Pulling latest changes..."
+              git fetch --all
+              git reset --hard origin/main
+            fi
+
+            # Create production environment file if it doesn't exist
+            if [ ! -f ".env" ]; then
+              echo "Creating production .env file..."
+              cp .env.example .env
+              
+              # Update environment variables for production
+              sed -i 's/APP_ENV=local/APP_ENV=production/' .env
+              sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
+              sed -i 's/APP_URL=http:\/\/localhost/APP_URL=https:\/\/${{ secrets.DOMAIN }}/' .env
+              sed -i 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
+              sed -i 's/DB_DATABASE=laravel/DB_DATABASE=database\/database.sqlite/' .env
+              
+              # Clear database connection details for SQLite
+              sed -i 's/DB_HOST=127.0.0.1/# DB_HOST=127.0.0.1/' .env
+              sed -i 's/DB_PORT=3306/# DB_PORT=3306/' .env
+              sed -i 's/DB_USERNAME=root/# DB_USERNAME=root/' .env
+              sed -i 's/DB_PASSWORD=/# DB_PASSWORD=/' .env
+            fi
+
+            # Install/Update Composer dependencies
+            echo "Installing Composer dependencies..."
+            composer install --no-dev --optimize-autoloader --no-interaction
+
+            # Generate app key if needed
+            if ! grep -q "APP_KEY=base64:" .env; then
+              echo "Generating application key..."
+              php artisan key:generate --force
+            fi
+
+            # Ensure database directory exists
+            mkdir -p database
+            
+            # Create SQLite database if it doesn't exist
+            if [ ! -f "database/database.sqlite" ]; then
+              echo "Creating SQLite database..."
+              touch database/database.sqlite
+            fi
+
+            # Set proper file permissions
+            echo "Setting file permissions..."
+            chown -R www-data:www-data storage bootstrap/cache database
+            chmod -R 775 storage bootstrap/cache
+            chmod 664 database/database.sqlite
+
+            # Run database migrations
+            echo "Running database migrations..."
+            php artisan migrate --force
+
+            # Seed database if it's empty (optional)
+            if [ ! -s "database/database.sqlite" ] || [ $(sqlite3 database/database.sqlite "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';") -eq 0 ]; then
+              echo "Seeding database..."
+              php artisan db:seed --force
+            fi
+
+            # Install Node dependencies and build assets
+            echo "Building frontend assets..."
+            if command -v npm >/dev/null 2>&1; then
+              npm ci --only=production
+              npm run build
+            else
+              echo "Warning: npm not found, skipping asset build"
+            fi
+
+            # Clear and optimize Laravel caches
+            echo "Optimizing application..."
+            php artisan config:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            # Clear any application cache
+            php artisan cache:clear
+
+            # Restart PHP-FPM if using it
+            if systemctl is-active --quiet php8.2-fpm; then
+              echo "Restarting PHP-FPM..."
+              systemctl restart php8.2-fpm
+            fi
+
+            # Restart Apache
+            echo "Restarting Apache..."
+            systemctl restart apache2
+
+            # Health check
+            echo "Performing health check..."
+            sleep 5
+            if curl -f -s http://localhost > /dev/null || curl -f -s https://${{ secrets.DOMAIN }} > /dev/null; then
+              echo "✅ Deployment successful! Application is running."
+            else
+              echo "❌ Health check failed. Check Apache error logs:"
+              tail -20 /var/log/apache2/error.log
+            fi
+
+            echo "🚀 Deployment completed successfully!"
+            echo "📊 Application status:"
+            ls -la $PROJECT_DIR
