@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UserRequest;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -36,14 +37,11 @@ class UserController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(UserRequest $request)
     {
-        User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'position_id' => $request->position_id,
-        ]);
+        $addData = $request->validated();
+        $addData['password'] = Hash::make($addData['password']);
+        User::create($addData);
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
@@ -73,15 +71,11 @@ class UserController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UserRequest $request, string $id)
     {
         $user = User::findOrFail($id);
 
-        $updateData = [
-            'name' => $request->name,
-            'email' => $request->email,
-            'position_id' => $request->position_id,
-        ];
+        $updateData = $request->validated();
 
         // Only update password if provided
         if ($request->filled('password')) {

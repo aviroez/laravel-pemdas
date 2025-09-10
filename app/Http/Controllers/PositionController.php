@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PositionRequest;
 use App\Models\Position;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,12 +32,9 @@ class PositionController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(PositionRequest $request)
     {
-        Position::create([
-            'name' => $request->name,
-            'description' => $request->description,
-        ]);
+        Position::create($request->validated());
 
         return redirect()->route('positions.index')->with('success', 'Position created successfully.');
     }
@@ -60,14 +58,11 @@ class PositionController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(PositionRequest $request, string $id)
     {
         $position = Position::findOrFail($id);
 
-        $position->update([
-            'name' => $request->name,
-            'description' => $request->description,
-        ]);
+        $position->update($request->validated());
 
         return redirect()->route('positions.index')->with('success', 'Position updated successfully.');
     }
