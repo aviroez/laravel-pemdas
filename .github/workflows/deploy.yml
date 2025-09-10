@@ -63,18 +63,18 @@ jobs:
               echo "Creating production .env file..."
               cp .env.example .env
               
-              # Update environment variables for production
-              sed -i 's/APP_ENV=local/APP_ENV=production/' .env
-              sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
-              sed -i 's/APP_URL=http:\/\/localhost/APP_URL=https:\/\/${{ secrets.DOMAIN }}/' .env
-              sed -i 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
-              sed -i 's/DB_DATABASE=laravel/DB_DATABASE=database\/database.sqlite/' .env
+              # Update environment variables for production (using | as delimiter to avoid conflicts with /)
+              sed -i 's|APP_ENV=local|APP_ENV=production|' .env
+              sed -i 's|APP_DEBUG=true|APP_DEBUG=false|' .env
+              sed -i 's|APP_URL=http://localhost|APP_URL=https://${{ secrets.DOMAIN }}|' .env
+              sed -i 's|DB_CONNECTION=mysql|DB_CONNECTION=sqlite|' .env
+              sed -i 's|DB_DATABASE=laravel|DB_DATABASE=database/database.sqlite|' .env
               
               # Clear database connection details for SQLite
-              sed -i 's/DB_HOST=127.0.0.1/# DB_HOST=127.0.0.1/' .env
-              sed -i 's/DB_PORT=3306/# DB_PORT=3306/' .env
-              sed -i 's/DB_USERNAME=root/# DB_USERNAME=root/' .env
-              sed -i 's/DB_PASSWORD=/# DB_PASSWORD=/' .env
+              sed -i 's|DB_HOST=127.0.0.1|# DB_HOST=127.0.0.1|' .env
+              sed -i 's|DB_PORT=3306|# DB_PORT=3306|' .env
+              sed -i 's|DB_USERNAME=root|# DB_USERNAME=root|' .env
+              sed -i 's|DB_PASSWORD=|# DB_PASSWORD=|' .env
             fi
 
             # Install/Update Composer dependencies
