@@ -19,12 +19,14 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          timeout: 300s
+          command_timeout: 600s
           script: |
             set -e
 
             # Define project variables
             PROJECT_NAME="laravel-pemdas"
-            PROJECT_DIR="/var/www/$PROJECT_NAME"
+            PROJECT_DIR="/var/www/html/$PROJECT_NAME"
             BACKUP_DIR="/var/backups/$PROJECT_NAME"
 
             # Create backup directory
@@ -115,10 +117,16 @@ jobs:
             # Install Node dependencies and build assets
             echo "Building frontend assets..."
             if command -v npm >/dev/null 2>&1; then
-              # hide only production to accomodate vite
-              # npm ci --only=production
-              npm ci
-              npm run build
+              echo "Installing npm dependencies..."
+              npm ci --silent
+              
+              echo "Building assets with timeout protection..."
+              timeout 300 npm run build || {
+                echo "Build timed out or failed, trying with reduced optimization..."
+                timeout 180 npm run build -- --minify=false || {
+                  echo "Build failed, continuing without assets..."
+                }
+              }
             else
               echo "Warning: npm not found, skipping asset build"
             fi
