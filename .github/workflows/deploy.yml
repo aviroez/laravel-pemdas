@@ -115,7 +115,9 @@ jobs:
             # Install Node dependencies and build assets
             echo "Building frontend assets..."
             if command -v npm >/dev/null 2>&1; then
-              npm ci --only=production
+              # hide only production to accomodate vite
+              # npm ci --only=production
+              npm ci
               npm run build
             else
               echo "Warning: npm not found, skipping asset build"
