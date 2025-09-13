@@ -1,4 +1,5 @@
 import DangerButton from '@/Components/DangerButton';
+import InfoButton from '@/Components/InfoButton';
 import InputError from '@/Components/InputError';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
